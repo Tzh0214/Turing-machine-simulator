@@ -1,0 +1,22 @@
+{
+    "q1": {
+        " ": {
+            "write": "1",
+            "move": "right",
+            "nextState": "q2"
+        }
+    },
+    "q2": {
+        " ": {
+            "write": "0",
+            "move": "left",
+            "nextState": "q2"
+        },
+        "1": {
+            "write": "0",
+            "move": "left",
+            "nextState": "q3"
+        }
+    },
+    "input": ["0", "1", "11"]
+}

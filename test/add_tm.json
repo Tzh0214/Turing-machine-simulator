@@ -1,0 +1,46 @@
+{
+    "q1": {
+        "0": {
+            "write": "0",
+            "move": "right",
+            "nextState": "q1"
+        },
+        " ": {
+            "write": "0",
+            "move": "right",
+            "nextState": "q2"
+        }
+    },
+    "q2": {
+        "0": {
+            "write": "0",
+            "move": "right",
+            "nextState": "q2"
+        },
+        " ": {
+            "write": " ",
+            "move": "left",
+            "nextState": "q3"
+        }
+    },
+    "q3": {
+        "0": {
+            "write": " ",
+            "move": "left",
+            "nextState": "q4"
+        }
+    },
+    "q4": {
+        "0": {
+            "write": "0",
+            "move": "left",
+            "nextState": "q4"
+        },
+        " ": {
+            "write": " ",
+            "move": "right",
+            "nextState": "qf"
+        }
+    },
+    "input": ["00", "000"]
+}
