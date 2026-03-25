@@ -49,6 +49,7 @@ def run_utm(json_path: str, mode: str, delay: float, max_steps: int):
         utm.show()
     
     print(f"\n结果: {'接受' if result else '停机'}, 步数: {utm.steps}")
+    utm.save_history("utm_execution_log.txt")
     return result
 
 

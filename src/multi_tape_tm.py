@@ -47,14 +47,25 @@ class Tape:
     
     def display(self, padding: int = 5) -> Tuple[str, str]:
         lo, hi = self.get_bounds()
+        # 确保head位置总是在显示范围内
+        lo = min(lo, self.head)
+        hi = max(hi, self.head)
         lo -= padding
         hi += padding
         
         tape_str = ""
         head_str = ""
+        
         for p in range(lo, hi + 1):
-            tape_str += self.content.get(p, BLANK)
-            head_str += "^" if p == self.head else " "
+            cell_content = self.content.get(p, BLANK)
+            tape_str += cell_content
+            
+            width = len(cell_content)
+            if p == self.head:
+                head_str += "^" + " " * (width - 1)
+            else:
+                head_str += " " * width
+                
         return tape_str, head_str
 
 

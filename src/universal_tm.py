@@ -11,20 +11,19 @@ from .tm_encoder import TuringMachineEncoder
 
 
 class UniversalTM:
-    # 运行阶段
     PHASE_INIT = "初始化"
-    PHASE_STEP2 = "Step 2: 检查M编码，确定符号表示位数"
-    PHASE_STEP3_T2 = "Step 3: 初始化磁带2（M的工作磁带）"
-    PHASE_STEP3_T3 = "Step 3: 初始化磁带3（M的状态）"
-    PHASE_LOOK = "查找转移: 在磁带1上查找匹配的转移"
-    PHASE_EXEC = "执行转移: 修改符号、移动磁头、更新状态"
-    PHASE_ACCEPT = "M接受"
-    PHASE_HALT = "M停机"
+    PHASE_STEP2 = "第2步: 通用图灵机检查被模拟图灵机M，以确定它需要多少个磁带方格来表示M的一个符号。"
+    PHASE_STEP3 = "第3步: 初始化磁带2，表示带有输入w的M的磁带，并初始化磁带3以保存起始状态。"
+    PHASE_LOOK = "查找转移: 在磁带1上寻找与磁带3上的状态和磁带2当前磁头下的符号相匹配的动作。"
+    PHASE_EXEC = "执行转移: 如果找到，修改符号，移动磁带2上的磁头，并改变磁带3上的状态。"
+    PHASE_ACCEPT = "接受: M接受，通用图灵机也接受。"
+    PHASE_HALT = "停机: M未找到转移规则，拒绝并停机。"
     
     def __init__(self):
         self.mtm = MultiTapeTM(3, "UTM")
         self.phase = self.PHASE_INIT
         self.phase_detail = ""
+        self.history = []
         
         self.tm_encoding = ""
         self.tm_input = ""
@@ -46,9 +45,9 @@ class UniversalTM:
         self.mtm.display_extra = self._phase_info
         
     def _phase_info(self) -> str:
-        lines = [f"阶段: {self.phase}"]
+        lines = [f"当前阶段说明: {self.phase}"]
         if self.phase_detail:
-            lines.append(f"说明: {self.phase_detail}")
+            lines.append(f"({self.phase_detail})")
         if self.sim_state > 0:
             name = self.inv_state.get(self.sim_state, f"q{self.sim_state}")
             lines.append(f"M当前状态: {name}")
@@ -110,12 +109,15 @@ class UniversalTM:
         
         # 初始化磁带2
         self.tape2 = {}
-        self.tape2_head = 0
+        # Offset head and content by 3 units as requested
+        offset = 3
+        self.tape2_head = offset
+        self.mtm.tapes[1].head = offset  # Allows display to track head correctly
         for i, c in enumerate(self.tm_input.replace('_', ' ')):
-            if c != ' ':
-                code = self._sym_to_code(c)
-                self.tape2[i] = code
-                self.mtm.tapes[1].content[i] = '1' * code
+            code = self._sym_to_code(c)
+            self.tape2[i + offset] = code
+            # 每个符号后加分隔符0
+            self.mtm.tapes[1].content[i + offset] = '1' * code + '0'
                 
         # 磁带3: 起始状态
         self.mtm.tapes[2].content[0] = '1'
@@ -137,18 +139,13 @@ class UniversalTM:
         
         if self.steps == 1:
             self.phase = self.PHASE_STEP2
-            self.phase_detail = "The UTM examines M to see how many tape squares needed per symbol."
+            self.phase_detail = ""
             return True
         if self.steps == 2:
-            self.phase = self.PHASE_STEP3_T2
-            self.phase_detail = "Initialize Tape 2 to represent the tape of M with input w."
-            return True
-        if self.steps == 3:
-            self.phase = self.PHASE_STEP3_T3
-            self.phase_detail = "Initialize Tape 3 to hold the start state."
+            self.phase = self.PHASE_STEP3
+            self.phase_detail = ""
             return True
         
-        # 查找转移
         self.phase = self.PHASE_LOOK
         cur_sym = self._cur_symbol()
         state_name = self.inv_state.get(self.sim_state, f"q{self.sim_state}")
@@ -173,25 +170,63 @@ class UniversalTM:
         # 写
         if write == 1:
             self.tape2.pop(self.tape2_head, None)
-            self.mtm.tapes[1].content.pop(self.tape2_head, None)
         else:
             self.tape2[self.tape2_head] = write
-            self.mtm.tapes[1].content[self.tape2_head] = '1' * write
             
-        # 移动
         if direction == 1:
             self.tape2_head -= 1
-            self.mtm.tapes[1].head -= 1
         else:
             self.tape2_head += 1
-            self.mtm.tapes[1].head += 1
             
-        # 更新状态
         self.sim_state = next_state
         self.mtm.tapes[2].content = {0: '1' * next_state}
         
+        self.mtm.tapes[1].content.clear()
+        if self.tape2:
+            min_pos = min(self.tape2.keys())
+            max_pos = max(self.tape2.keys())
+            start_idx = min(min_pos, self.tape2_head)
+            end_idx = max(max_pos, self.tape2_head)
+        else:
+            start_idx = end_idx = self.tape2_head
+            
+        for p in range(start_idx, end_idx + 1):
+            code = self.tape2.get(p)
+            if code is not None:
+                # 每个符号后加分隔符0
+                self.mtm.tapes[1].content[p] = '1' * code + '0'
+
+        self.mtm.tapes[1].head = self.tape2_head
+        
         return True
-    
+
+    def _predict_next_instruction(self) -> str:
+        if self.halted:
+            return "已停机"
+        
+        # steps is current executed steps.
+        # Next step will be steps + 1 logic.
+        if self.steps == 0:
+             return self.PHASE_STEP2
+        if self.steps == 1:
+             return self.PHASE_STEP3
+        
+        # Predicting next transition
+        cur_sym = self._cur_symbol()
+        state_name = self.inv_state.get(self.sim_state, f"q{self.sim_state}")
+        sym_name = self.inv_symbol.get(cur_sym, f"s{cur_sym}")
+        
+        trans = self._find_trans(self.sim_state, cur_sym)
+        if trans is None:
+            return "即将停机 (无匹配转移)"
+            
+        write, direction, next_state = trans
+        w_name = self.inv_symbol.get(write, f"s{write}")
+        n_name = self.inv_state.get(next_state, f"q{next_state}")
+        d_name = "L" if direction == 1 else "R"
+        
+        return f"查找 δ({state_name}, '{sym_name}') -> 写'{w_name}', 移动{d_name}, 转到{n_name}"
+
     def show(self, clear: bool = False) -> str:
         if clear:
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -201,12 +236,17 @@ class UniversalTM:
         for tape in self.mtm.tapes:
             t, h = tape.display(3)
             lines.append(f"{tape.name}: {t}")
+            
+            if "T2" in tape.name:
+                 h = " " * 3 + h  # User requested offset
+
             lines.append(f"{'':>{len(tape.name)+2}}{h}")
             
         lines.append("-" * 40)
-        lines.append(f"阶段: {self.phase}")
-        if self.phase_detail:
-            lines.append(f"说明: {self.phase_detail}")
+        
+        # Replace past phase description with Next Action prediction as requested
+        next_info = self._predict_next_instruction()
+        lines.append(f"下一步操作: {next_info}")
             
         if self.sim_state > 0:
             name = self.inv_state.get(self.sim_state, f"q{self.sim_state}")
@@ -215,6 +255,9 @@ class UniversalTM:
             # 显示M的磁带内容
             if self.tape2:
                 lo, hi = min(self.tape2.keys()), max(self.tape2.keys())
+                # 确保显示范围包含磁头位置
+                lo = min(lo, self.tape2_head)
+                hi = max(hi, self.tape2_head)
                 tape_disp = ''.join(
                     self.inv_symbol.get(self.tape2.get(p, 1), '_').replace(' ', '_')
                     for p in range(lo, hi + 1)
@@ -222,9 +265,15 @@ class UniversalTM:
                 lines.append(f"M磁带: {tape_disp}")
         
         out = "\n".join(lines)
+        self.history.append(out)
         print(out)
         return out
     
+    def save_history(self, filename: str = "utm_execution_log.txt"):
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(("\n\n" + "="*50 + "\n\n").join(self.history))
+        print(f"\n[提示] 完整运行日志已保存至: {os.path.abspath(filename)}")
+
     def run_interactive(self, max_steps: int = 1000) -> bool:
         self.show(True)
         while not self.halted and self.steps < max_steps:
@@ -244,6 +293,7 @@ class UniversalTM:
     def run_silent(self, max_steps: int = 10000) -> bool:
         while not self.halted and self.steps < max_steps:
             self.step()
+            self.show()
         return self.accepted
 
 

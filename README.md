@@ -9,6 +9,7 @@
 │   ├── tm_encoder.py      # 编码模块
 │   ├── multi_tape_tm.py   # 多带TM
 │   ├── universal_tm.py    # UTM
+│   ├── gui.py             # 图形界面
 │   └── main.py            # 主程序
 ├── test/
 │   ├── add_tm.json        # 加法TM (2+3=5)
@@ -22,17 +23,21 @@
 ```bash
 cd Turing-machine-simulator
 
-# 运行ADD测试 (自动模式)
-python3 -m src.main --json test/add_tm.json --mode auto --delay 0.3
+# 运行TM测试 (自动模式)
+python -m src.main --json test/add_tm.json --mode auto --delay 0.3
+
+# 模拟详细过程 (静默模式/生成日志)
+python -m src.main --json test/add_tm.json --mode silent -s 100
+# 运行结束后，详细的执行历史将保存至 `utm_execution_log.txt` 文件
 
 # 交互模式
-python3 -m src.main --json test/add_tm.json --mode interactive
+python -m src.main --json test/add_tm.json --mode interactive
 
 # 只看编码
-python3 -m src.main --json test/add_tm.json --encode-only
+python -m src.main --json test/add_tm.json --encode-only
 
 # 多带TM演示
-python3 -m src.main --demo
+python -m src.main --demo
 ```
 
 ## JSON格式
